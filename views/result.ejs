@@ -1,0 +1,41 @@
+<!-- views/result.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= success ? 'Authorization Successful' : 'Authorization Failed' %> - FedEx Task Delivery</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #4d148c, #6c63ff); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .container { max-width: 500px; margin: 0 auto; padding: 20px; }
+        .result-card { background: white; border-radius: 20px; padding: 40px 30px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+        .icon { font-size: 4em; margin-bottom: 20px; }
+        .success-icon { color: #28a745; }
+        .error-icon { color: #dc3545; }
+        .title { font-size: 2em; margin-bottom: 15px; color: #333; }
+        .message { font-size: 1.2em; color: #666; margin-bottom: 10px; line-height: 1.5; }
+        .sub-message { color: #888; margin-bottom: 30px; }
+        .back-btn { display: inline-block; padding: 12px 30px; background: linear-gradient(45deg, #4d148c, #6c63ff); color: white; text-decoration: none; border-radius: 50px; font-weight: 600; transition: transform 0.3s; }
+        .back-btn:hover { transform: translateY(-2px); }
+        .fedex-footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 0.9em; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="result-card">
+            <div class="icon <%= success ? 'success-icon' : 'error-icon' %>">
+                <%= success ? '✅' : '❌' %>
+            </div>
+            <h1 class="title"><%= title %></h1>
+            <p class="message"><%= message %></p>
+            <p class="sub-message"><%= subMessage %></p>
+            <a href="/" class="back-btn">📦 Send Another Task</a>
+            <div class="fedex-footer">
+                <p>FedEx Task Delivery System</p>
+                <p>Powered by your friendly task automation</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

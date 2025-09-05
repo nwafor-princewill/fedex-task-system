@@ -1,0 +1,231 @@
+<!-- views/index.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FedEx Task Delivery System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #4d148c, #6c63ff); min-height: 100vh; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; color: white; margin-bottom: 30px; }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header p { font-size: 1.2em; opacity: 0.9; }
+        .form-container { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        .form-section { margin-bottom: 25px; }
+        .form-section h3 { color: #4d148c; margin-bottom: 15px; font-size: 1.3em; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group.full-width { grid-column: 1 / -1; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; color: #333; }
+        input, textarea, select { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px; transition: border-color 0.3s; }
+        input:focus, textarea:focus, select:focus { outline: none; border-color: #4d148c; }
+        textarea { resize: vertical; min-height: 100px; }
+        .file-input { position: relative; overflow: hidden; display: inline-block; width: 100%; }
+        .file-input input[type=file] { position: absolute; left: -9999px; }
+        .file-input-label { display: block; padding: 12px; border: 2px dashed #4d148c; border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.3s; }
+        .file-input-label:hover { background-color: #f8f9ff; }
+        .file-preview { margin-top: 10px; text-align: center; }
+        .file-preview img { max-width: 200px; border-radius: 8px; border: 2px solid #ddd; }
+        .submit-btn { background: linear-gradient(45deg, #4d148c, #6c63ff); color: white; padding: 15px 40px; border: none; border-radius: 50px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; transition: transform 0.3s; }
+        .submit-btn:hover { transform: translateY(-2px); }
+        .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .result-message { padding: 15px; border-radius: 8px; margin-top: 20px; text-align: center; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .loading { display: none; text-align: center; margin-top: 20px; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #4d148c; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📦 FedEx Task Delivery</h1>
+            <p>Send fun task notifications to your friends!</p>
+        </div>
+
+        <div class="form-container">
+            <form id="taskForm" enctype="multipart/form-data">
+                <!-- Recipient Details -->
+                <div class="form-section">
+                    <h3>👤 Recipient Information</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="recipientEmail">Recipient Email *</label>
+                            <input type="email" id="recipientEmail" name="recipientEmail" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="recipientName">Recipient Name *</label>
+                            <input type="text" id="recipientName" name="recipientName" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task Details -->
+                <div class="form-section">
+                    <h3>📋 Basic Details</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="taskName">Task Name *</label>
+                            <input type="text" id="taskName" name="taskName" placeholder="e.g., Complete Project X" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="specialId">Special ID (Optional)</label>
+                            <input type="text" id="specialId" name="specialId" placeholder="Auto-generated if empty">
+                        </div>
+                        <div class="form-group">
+                            <label for="priority">Priority</label>
+                            <select id="priority" name="priority">
+                                <option value="Low">Low Priority</option>
+                                <option value="Standard" selected>Standard Priority</option>
+                                <option value="High">High Priority</option>
+                                <option value="Urgent">Urgent Priority</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="estimatedTime">Estimated Time to Finish</label>
+                            <input type="text" id="estimatedTime" name="estimatedTime" placeholder="e.g., 2-3 days">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task Image -->
+                <div class="form-section">
+                    <h3>🖼️ Task Image/Preview</h3>
+                    <div class="form-group">
+                        <div class="file-input">
+                            <input type="file" id="taskImage" name="taskImage" accept="image/*">
+                            <label for="taskImage" class="file-input-label">
+                                📸 Click to upload task image (optional)
+                            </label>
+                        </div>
+                        <div class="file-preview" id="imagePreview"></div>
+                    </div>
+                </div>
+
+                <!-- Specifications -->
+                <div class="form-section">
+                    <h3>📊 Specifications</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="weight">Weight</label>
+                            <input type="text" id="weight" name="weight" placeholder="e.g., 5 hours of work">
+                        </div>
+                        <div class="form-group">
+                            <label for="dimensions">Dimensions</label>
+                            <input type="text" id="dimensions" name="dimensions" placeholder="e.g., Large scope">
+                        </div>
+                        <div class="form-group">
+                            <label for="value">Value</label>
+                            <input type="text" id="value" name="value" placeholder="e.g., High importance">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="address1">Address 1</label>
+                            <input type="text" id="address1" name="address1" placeholder="e.g., Home office">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="address2">Address 2</label>
+                            <input type="text" id="address2" name="address2" placeholder="e.g., Remote work">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Message -->
+                <div class="form-section">
+                    <h3>💬 Custom Message</h3>
+                    <div class="form-group">
+                        <label for="message">Message to Recipient</label>
+                        <textarea id="message" name="message" placeholder="Enter a custom message for your friend..."></textarea>
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn">📤 Send Task Notification</button>
+            </form>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Sending notification...</p>
+            </div>
+
+            <div id="result"></div>
+        </div>
+    </div>
+
+    <script>
+        // Image preview functionality
+        document.getElementById('taskImage').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const preview = document.getElementById('imagePreview');
+            const label = document.querySelector('.file-input-label');
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+                    label.textContent = `✅ ${file.name} selected`;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                preview.innerHTML = '';
+                label.textContent = '📸 Click to upload task image (optional)';
+            }
+        });
+
+        // Form submission
+        document.getElementById('taskForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitBtn = document.querySelector('.submit-btn');
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            
+            // Show loading
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            result.innerHTML = '';
+            
+            try {
+                const response = await fetch('/send-task', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    result.innerHTML = `
+                        <div class="result-message success">
+                            <h3>✅ Task notification sent successfully!</h3>
+                            <p><strong>Special ID:</strong> ${data.specialId}</p>
+                            <p>Your friend will receive the notification shortly and has 20 minutes to authorize it.</p>
+                        </div>
+                    `;
+                    this.reset();
+                    document.getElementById('imagePreview').innerHTML = '';
+                    document.querySelector('.file-input-label').textContent = '📸 Click to upload task image (optional)';
+                } else {
+                    result.innerHTML = `
+                        <div class="result-message error">
+                            <h3>❌ Failed to send notification</h3>
+                            <p>${data.message}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                result.innerHTML = `
+                    <div class="result-message error">
+                        <h3>❌ Error occurred</h3>
+                        <p>Please check your internet connection and try again.</p>
+                    </div>
+                `;
+            } finally {
+                submitBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
