@@ -7,6 +7,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('cloudinary').v2;
+const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -64,6 +65,110 @@ const createTransporter = () => {
       pass: process.env.EMAIL_PASS
     }
   });
+};
+
+// Function to get coordinates from address (geocoding)
+const geocodeAddress = async (address) => {
+  if (!address || address.trim() === '' || address === 'Not specified') {
+    return null;
+  }
+  
+  try {
+    console.log(`🗺️ Geocoding address: ${address}`);
+    
+    // Using Nominatim (OpenStreetMap) free geocoding service
+    const encodedAddress = encodeURIComponent(address.trim());
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'FedEx-Task-System/1.0'
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      const result = {
+        lat: parseFloat(data[0].lat),
+        lon: parseFloat(data[0].lon),
+        displayName: data[0].display_name
+      };
+      console.log(`✅ Geocoded: ${address} -> ${result.lat}, ${result.lon}`);
+      return result;
+    } else {
+      console.log(`❌ No results found for address: ${address}`);
+      return null;
+    }
+  } catch (error) {
+    console.log('Geocoding error:', error.message);
+    return null;
+  }
+};
+
+// Function to make HTTP requests (for Node.js compatibility)
+const makeRequest = (url) => {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'FedEx-Task-System/1.0' } }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }).on('error', reject);
+  });
+};
+
+// Alternative geocoding function using built-in https
+const geocodeAddressBuiltIn = async (address) => {
+  if (!address || address.trim() === '' || address === 'Not specified') {
+    return null;
+  }
+  
+  try {
+    console.log(`🗺️ Geocoding address: ${address}`);
+    
+    const encodedAddress = encodeURIComponent(address.trim());
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
+    
+    const data = await makeRequest(url);
+    
+    if (data && data.length > 0) {
+      const result = {
+        lat: parseFloat(data[0].lat),
+        lon: parseFloat(data[0].lon),
+        displayName: data[0].display_name
+      };
+      console.log(`✅ Geocoded: ${address} -> ${result.lat}, ${result.lon}`);
+      return result;
+    } else {
+      console.log(`❌ No results found for address: ${address}`);
+      return null;
+    }
+  } catch (error) {
+    console.log('Geocoding error:', error.message);
+    return null;
+  }
+};
+
+// Function to generate static map image URL
+const generateStaticMapUrl = (lat, lon, address, width = 600, height = 300, zoom = 15) => {
+  // Using OpenStreetMap static map service
+  return `https://maps.geoapify.com/v1/staticmap?style=osm-carto&width=${width}&height=${height}&center=lonlat:${lon},${lat}&zoom=${zoom}&marker=lonlat:${lon},${lat};type:material;color:%23ff0000;size:large&apiKey=demo_key`;
+};
+
+// Function to generate Google Maps link
+const generateGoogleMapsLink = (address) => {
+  if (!address || address.trim() === '' || address === 'Not specified') {
+    return null;
+  }
+  
+  const encodedAddress = encodeURIComponent(address.trim());
+  return `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
 };
 
 // Routes
@@ -133,6 +238,11 @@ app.post('/send-task', upload.single('taskImage'), async (req, res) => {
       }
     }
 
+    // Geocode addresses for map generation
+    console.log('🗺️ Geocoding addresses...');
+    const address1Data = await geocodeAddressBuiltIn(address1);
+    const address2Data = await geocodeAddressBuiltIn(address2);
+
     const taskData = {
       recipientName,
       taskName,
@@ -145,6 +255,12 @@ app.post('/send-task', upload.single('taskImage'), async (req, res) => {
       value: value || 'N/A',
       address1: address1 || 'Not specified',
       address2: address2 || 'Not specified',
+      address1Data: address1Data,
+      address2Data: address2Data,
+      address1MapUrl: address1Data ? generateStaticMapUrl(address1Data.lat, address1Data.lon, address1) : null,
+      address2MapUrl: address2Data ? generateStaticMapUrl(address2Data.lat, address2Data.lon, address2) : null,
+      address1GoogleLink: generateGoogleMapsLink(address1),
+      address2GoogleLink: generateGoogleMapsLink(address2),
       message: message || 'A new task has been assigned to you.',
       imageUrl: imageUrl,
       authUrl: `${req.protocol}://${req.get('host')}/authorize/${token}`,
@@ -272,6 +388,11 @@ async function generateEmailHtml(data) {
         .priority-high { color: #dc3545; font-weight: bold; }
         .priority-standard { color: #28a745; }
         .priority-low { color: #6c757d; }
+        .map-container { margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; }
+        .map-title { color: #4d148c; font-weight: bold; margin-bottom: 10px; }
+        .map-image { max-width: 100%; height: auto; border-radius: 8px; border: 2px solid #ddd; display: block; margin: 10px auto; }
+        .map-link { display: inline-block; padding: 8px 16px; background: #4285f4; color: white; text-decoration: none; border-radius: 4px; font-size: 14px; margin-top: 10px; }
+        .map-fallback { padding: 20px; background: #e9ecef; border-radius: 8px; color: #666; text-align: center; }
     </style>
 </head>
 <body>
@@ -353,15 +474,70 @@ async function generateEmailHtml(data) {
                         <div class="detail-value">${data.value}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="detail-label">Address 1</div>
+                        <div class="detail-label">Pickup Address</div>
                         <div class="detail-value">${data.address1}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="detail-label">Address 2</div>
+                        <div class="detail-label">Delivery Address</div>
                         <div class="detail-value">${data.address2}</div>
                     </div>
                 </div>
             </div>
+
+            <!-- Location Maps -->
+            ${(data.address1MapUrl || data.address2MapUrl || data.address1GoogleLink || data.address2GoogleLink) ? `
+            <div class="section">
+                <h3>📍 Delivery Locations</h3>
+                
+                ${data.address1 !== 'Not specified' ? `
+                <div class="map-container">
+                    <div class="map-title">📍 Pickup Location: ${data.address1}</div>
+                    ${data.address1MapUrl ? `
+                    <div style="text-align: center;">
+                        ${data.address1GoogleLink ? `<a href="${data.address1GoogleLink}" target="_blank" style="text-decoration: none;">` : ''}
+                        <img src="${data.address1MapUrl}" alt="Pickup Location Map" class="map-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <div class="map-fallback" style="display: none;">
+                            📍 Map preview not available for this location
+                        </div>
+                        ${data.address1GoogleLink ? `</a>` : ''}
+                        ${data.address1GoogleLink ? `<br><a href="${data.address1GoogleLink}" target="_blank" class="map-link">🗺️ View in Google Maps</a>` : ''}
+                    </div>
+                    ` : (data.address1GoogleLink ? `
+                    <div style="text-align: center;">
+                        <div class="map-fallback">
+                            📍 Static map not available, but you can view the location below
+                        </div>
+                        <a href="${data.address1GoogleLink}" target="_blank" class="map-link">🗺️ View in Google Maps</a>
+                    </div>
+                    ` : '')}
+                </div>
+                ` : ''}
+                
+                ${data.address2 !== 'Not specified' ? `
+                <div class="map-container">
+                    <div class="map-title">📍 Delivery Location: ${data.address2}</div>
+                    ${data.address2MapUrl ? `
+                    <div style="text-align: center;">
+                        ${data.address2GoogleLink ? `<a href="${data.address2GoogleLink}" target="_blank" style="text-decoration: none;">` : ''}
+                        <img src="${data.address2MapUrl}" alt="Delivery Location Map" class="map-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <div class="map-fallback" style="display: none;">
+                            📍 Map preview not available for this location
+                        </div>
+                        ${data.address2GoogleLink ? `</a>` : ''}
+                        ${data.address2GoogleLink ? `<br><a href="${data.address2GoogleLink}" target="_blank" class="map-link">🗺️ View in Google Maps</a>` : ''}
+                    </div>
+                    ` : (data.address2GoogleLink ? `
+                    <div style="text-align: center;">
+                        <div class="map-fallback">
+                            📍 Static map not available, but you can view the location below
+                        </div>
+                        <a href="${data.address2GoogleLink}" target="_blank" class="map-link">🗺️ View in Google Maps</a>
+                    </div>
+                    ` : '')}
+                </div>
+                ` : ''}
+            </div>
+            ` : ''}
 
             <!-- Message -->
             <div class="section">
