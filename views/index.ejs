@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FedEx Task Delivery System</title>
+    <title>FedEx Product Delivery System</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #4d148c, #6c63ff); min-height: 100vh; }
@@ -42,8 +42,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📦 FedEx Task Delivery</h1>
-            <p>Send fun task notifications to your friends!</p>
+            <h1>📦 FedEx Product Delivery</h1>
+            <p>Send fun product notifications to your friends!</p>
         </div>
 
         <div class="form-container">
@@ -63,12 +63,12 @@
                     </div>
                 </div>
 
-                <!-- Task Details -->
+                <!-- Product Details -->
                 <div class="form-section">
                     <h3>📋 Basic Details</h3>
                     <div class="form-grid">
                         <div class="form-group">
-                            <label for="taskName">Task Name *</label>
+                            <label for="taskName">Product Name *</label>
                             <input type="text" id="taskName" name="taskName" placeholder="e.g., Complete Project X" required>
                         </div>
                         <div class="form-group">
@@ -91,14 +91,14 @@
                     </div>
                 </div>
 
-                <!-- Task Image -->
+                <!-- Product Image -->
                 <div class="form-section">
-                    <h3>🖼️ Task Image/Preview</h3>
+                    <h3>🖼️ Product Image/Preview</h3>
                     <div class="form-group">
                         <div class="file-input">
                             <input type="file" id="taskImage" name="taskImage" accept="image/*">
                             <label for="taskImage" class="file-input-label">
-                                📸 Click to upload task image (optional)
+                                📸 Click to upload product image (optional)
                             </label>
                         </div>
                         <div class="file-preview" id="imagePreview"></div>
@@ -122,11 +122,11 @@
                             <input type="text" id="value" name="value" placeholder="e.g., High importance">
                         </div>
                         <div class="form-group full-width">
-                            <label for="address1">Address 1</label>
+                            <label for="address1">Pickup Address</label>
                             <input type="text" id="address1" name="address1" placeholder="e.g., Home office">
                         </div>
                         <div class="form-group full-width">
-                            <label for="address2">Address 2</label>
+                            <label for="address2">Delivery Address </label>
                             <input type="text" id="address2" name="address2" placeholder="e.g., Remote work">
                         </div>
                     </div>
@@ -141,7 +141,7 @@
                     </div>
                 </div>
 
-                <button type="submit" class="submit-btn">📤 Send Task Notification</button>
+                <button type="submit" class="submit-btn">📤 Send Product Notification</button>
             </form>
 
             <div class="loading" id="loading">
@@ -169,7 +169,7 @@
                 reader.readAsDataURL(file);
             } else {
                 preview.innerHTML = '';
-                label.textContent = '📸 Click to upload task image (optional)';
+                label.textContent = '📸 Click to upload product image (optional)';
             }
         });
 
@@ -198,14 +198,14 @@
                 if (data.success) {
                     result.innerHTML = `
                         <div class="result-message success">
-                            <h3>✅ Task notification sent successfully!</h3>
+                            <h3>✅ Product notification sent successfully!</h3>
                             <p><strong>Special ID:</strong> ${data.specialId}</p>
                             <p>Your friend will receive the notification shortly and has 20 minutes to authorize it.</p>
                         </div>
                     `;
                     this.reset();
                     document.getElementById('imagePreview').innerHTML = '';
-                    document.querySelector('.file-input-label').textContent = '📸 Click to upload task image (optional)';
+                    document.querySelector('.file-input-label').textContent = '📸 Click to upload product image (optional)';
                 } else {
                     result.innerHTML = `
                         <div class="result-message error">
