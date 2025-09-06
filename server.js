@@ -7,7 +7,6 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('cloudinary').v2;
-const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -65,100 +64,6 @@ const createTransporter = () => {
       pass: process.env.EMAIL_PASS
     }
   });
-};
-
-// Function to get coordinates from address (geocoding)
-const geocodeAddress = async (address) => {
-  if (!address || address.trim() === '' || address === 'Not specified') {
-    return null;
-  }
-  
-  try {
-    console.log(`🗺️ Geocoding address: ${address}`);
-    
-    // Using Nominatim (OpenStreetMap) free geocoding service
-    const encodedAddress = encodeURIComponent(address.trim());
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
-    
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'FedEx-Task-System/1.0'
-      }
-    });
-    
-    const data = await response.json();
-    
-    if (data && data.length > 0) {
-      const result = {
-        lat: parseFloat(data[0].lat),
-        lon: parseFloat(data[0].lon),
-        displayName: data[0].display_name
-      };
-      console.log(`✅ Geocoded: ${address} -> ${result.lat}, ${result.lon}`);
-      return result;
-    } else {
-      console.log(`❌ No results found for address: ${address}`);
-      return null;
-    }
-  } catch (error) {
-    console.log('Geocoding error:', error.message);
-    return null;
-  }
-};
-
-// Function to make HTTP requests (for Node.js compatibility)
-const makeRequest = (url) => {
-  return new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'User-Agent': 'FedEx-Task-System/1.0' } }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          reject(e);
-        }
-      });
-    }).on('error', reject);
-  });
-};
-
-// Alternative geocoding function using built-in https
-const geocodeAddressBuiltIn = async (address) => {
-  if (!address || address.trim() === '' || address === 'Not specified') {
-    return null;
-  }
-  
-  try {
-    console.log(`🗺️ Geocoding address: ${address}`);
-    
-    const encodedAddress = encodeURIComponent(address.trim());
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
-    
-    const data = await makeRequest(url);
-    
-    if (data && data.length > 0) {
-      const result = {
-        lat: parseFloat(data[0].lat),
-        lon: parseFloat(data[0].lon),
-        displayName: data[0].display_name
-      };
-      console.log(`✅ Geocoded: ${address} -> ${result.lat}, ${result.lon}`);
-      return result;
-    } else {
-      console.log(`❌ No results found for address: ${address}`);
-      return null;
-    }
-  } catch (error) {
-    console.log('Geocoding error:', error.message);
-    return null;
-  }
-};
-
-// Function to generate static map image URL
-const generateStaticMapUrl = (lat, lon, address, width = 600, height = 300, zoom = 15) => {
-  // Using OpenStreetMap static map service
-  return `https://maps.geoapify.com/v1/staticmap?style=osm-carto&width=${width}&height=${height}&center=lonlat:${lon},${lat}&zoom=${zoom}&marker=lonlat:${lon},${lat};type:material;color:%23ff0000;size:large&apiKey=demo_key`;
 };
 
 // Function to generate Google Maps link
@@ -238,11 +143,6 @@ app.post('/send-task', upload.single('taskImage'), async (req, res) => {
       }
     }
 
-    // Geocode addresses for map generation
-    console.log('🗺️ Geocoding addresses...');
-    const address1Data = await geocodeAddressBuiltIn(address1);
-    const address2Data = await geocodeAddressBuiltIn(address2);
-
     const taskData = {
       recipientName,
       taskName,
@@ -255,10 +155,6 @@ app.post('/send-task', upload.single('taskImage'), async (req, res) => {
       value: value || 'N/A',
       address1: address1 || 'Not specified',
       address2: address2 || 'Not specified',
-      address1Data: address1Data,
-      address2Data: address2Data,
-      address1MapUrl: address1Data ? generateStaticMapUrl(address1Data.lat, address1Data.lon, address1) : null,
-      address2MapUrl: address2Data ? generateStaticMapUrl(address2Data.lat, address2Data.lon, address2) : null,
       address1GoogleLink: generateGoogleMapsLink(address1),
       address2GoogleLink: generateGoogleMapsLink(address2),
       message: message || 'A new task has been assigned to you.',
@@ -273,7 +169,7 @@ app.post('/send-task', upload.single('taskImage'), async (req, res) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: recipientEmail,
-      subject: `📦 FedEx Task Delivery - ${taskName} [${taskData.specialId}]`,
+      subject: `📦 FedEx Product Delivery - ${taskName} [${taskData.specialId}]`,
       html: emailHtml
     };
 
@@ -283,7 +179,7 @@ app.post('/send-task', upload.single('taskImage'), async (req, res) => {
 
     res.json({ 
       success: true, 
-      message: 'Task notification sent successfully!',
+      message: 'Product notification sent successfully!',
       specialId: taskData.specialId,
       token: token
     });
@@ -303,7 +199,6 @@ app.post('/send-task', upload.single('taskImage'), async (req, res) => {
   }
 });
 
-
 app.get('/authorize/:token', (req, res) => {
   const token = req.params.token;
   const tokenData = activeTokens.get(token);
@@ -313,7 +208,7 @@ app.get('/authorize/:token', (req, res) => {
       success: false,
       title: 'Link Expired',
       message: 'This authorization link has expired or is invalid.',
-      subMessage: 'Please request a new task notification.'
+      subMessage: 'Please request a new product notification.'
     });
   }
 
@@ -323,7 +218,7 @@ app.get('/authorize/:token', (req, res) => {
       success: false,
       title: 'Link Expired',
       message: 'This authorization link has expired (20 minutes limit exceeded).',
-      subMessage: 'Please request a new task notification.'
+      subMessage: 'Please request a new product notification.'
     });
   }
 
@@ -333,7 +228,7 @@ app.get('/authorize/:token', (req, res) => {
 
   res.render('result', {
     success: true,
-    title: 'Task Authorized Successfully!',
+    title: 'Product Authorized Successfully!',
     message: `Product "${tokenData.taskName}" has been authorized and accepted.`,
     subMessage: 'Your product will arrive within the designated period.'
   });
@@ -364,7 +259,7 @@ async function generateEmailHtml(data) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FedEx Task Delivery</title>
+    <title>FedEx Product Delivery</title>
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5; }
         .container { max-width: 600px; margin: 0 auto; background: white; }
@@ -390,32 +285,32 @@ async function generateEmailHtml(data) {
         .priority-low { color: #6c757d; }
         .map-container { margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; }
         .map-title { color: #4d148c; font-weight: bold; margin-bottom: 10px; }
-        .map-image { max-width: 100%; height: auto; border-radius: 8px; border: 2px solid #ddd; display: block; margin: 10px auto; }
-        .map-link { display: inline-block; padding: 8px 16px; background: #4285f4; color: white; text-decoration: none; border-radius: 4px; font-size: 14px; margin-top: 10px; }
-        .map-fallback { padding: 20px; background: #e9ecef; border-radius: 8px; color: #666; text-align: center; }
+        .map-button { display: inline-block; padding: 12px 24px; background: #4285f4; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 10px 0; }
+        .map-button:hover { background: #3367d6; }
+        .map-instruction { color: #666; font-size: 14px; margin-top: 8px; }
     </style>
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <div class="logo">📦 FedEx Task Delivery</div>
-            <div style="margin-top: 10px; font-size: 16px;">Task Assignment Notification</div>
+            <div class="logo">📦 FedEx Product Delivery</div>
+            <div style="margin-top: 10px; font-size: 16px;">Product Delivery Notification</div>
         </div>
 
         <!-- Content -->
         <div class="content">
             <div class="tracking-info">
                 <h2 style="margin: 0 0 10px 0; color: #4d148c;">Hello ${data.recipientName}!</h2>
-                <p style="margin: 0; font-size: 16px;">You have received a new task assignment: <strong>${data.taskName}</strong></p>
+                <p style="margin: 0; font-size: 16px;">You have received a new product delivery: <strong>${data.taskName}</strong></p>
                 <p style="margin: 5px 0 0 0; color: #666;">Tracking ID: <strong>${data.specialId}</strong></p>
             </div>
 
-            <!-- Task Image -->
+            <!-- Product Image -->
             ${data.imageUrl ? `
             <div class="task-image">
-                <h3 style="color: #4d148c;">Task Preview</h3>
-                <img src="${data.imageUrl}" alt="Task Image" />
+                <h3 style="color: #4d148c;">Product Preview</h3>
+                <img src="${data.imageUrl}" alt="Product Image" />
             </div>
             ` : ''}
 
@@ -424,7 +319,7 @@ async function generateEmailHtml(data) {
                 <h3>📋 Basic Details</h3>
                 <div class="details-grid">
                     <div class="detail-item">
-                        <div class="detail-label">Task Name</div>
+                        <div class="detail-label">Product Name</div>
                         <div class="detail-value">${data.taskName}</div>
                     </div>
                     <div class="detail-item">
@@ -451,7 +346,7 @@ async function generateEmailHtml(data) {
                         <div class="detail-value">${data.createdDate}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="detail-label">Est. Time to Finish</div>
+                        <div class="detail-label">Est. Delivery Time</div>
                         <div class="detail-value">${data.estimatedTime}</div>
                     </div>
                 </div>
@@ -485,55 +380,31 @@ async function generateEmailHtml(data) {
             </div>
 
             <!-- Location Maps -->
-            ${(data.address1MapUrl || data.address2MapUrl || data.address1GoogleLink || data.address2GoogleLink) ? `
+            ${(data.address1GoogleLink || data.address2GoogleLink) ? `
             <div class="section">
                 <h3>📍 Delivery Locations</h3>
                 
-                ${data.address1 !== 'Not specified' ? `
+                ${data.address1 !== 'Not specified' && data.address1GoogleLink ? `
                 <div class="map-container">
                     <div class="map-title">📍 Pickup Location: ${data.address1}</div>
-                    ${data.address1MapUrl ? `
                     <div style="text-align: center;">
-                        ${data.address1GoogleLink ? `<a href="${data.address1GoogleLink}" target="_blank" style="text-decoration: none;">` : ''}
-                        <img src="${data.address1MapUrl}" alt="Pickup Location Map" class="map-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                        <div class="map-fallback" style="display: none;">
-                            📍 Map preview not available for this location
-                        </div>
-                        ${data.address1GoogleLink ? `</a>` : ''}
-                        ${data.address1GoogleLink ? `<br><a href="${data.address1GoogleLink}" target="_blank" class="map-link">🗺️ View in Google Maps</a>` : ''}
+                        <a href="${data.address1GoogleLink}" target="_blank" class="map-button">
+                            🗺️ View Pickup Location
+                        </a>
+                        <p class="map-instruction">Click to view this location on Google Maps</p>
                     </div>
-                    ` : (data.address1GoogleLink ? `
-                    <div style="text-align: center;">
-                        <div class="map-fallback">
-                            📍 Static map not available, but you can view the location below
-                        </div>
-                        <a href="${data.address1GoogleLink}" target="_blank" class="map-link">🗺️ View in Google Maps</a>
-                    </div>
-                    ` : '')}
                 </div>
                 ` : ''}
                 
-                ${data.address2 !== 'Not specified' ? `
+                ${data.address2 !== 'Not specified' && data.address2GoogleLink ? `
                 <div class="map-container">
                     <div class="map-title">📍 Delivery Location: ${data.address2}</div>
-                    ${data.address2MapUrl ? `
                     <div style="text-align: center;">
-                        ${data.address2GoogleLink ? `<a href="${data.address2GoogleLink}" target="_blank" style="text-decoration: none;">` : ''}
-                        <img src="${data.address2MapUrl}" alt="Delivery Location Map" class="map-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                        <div class="map-fallback" style="display: none;">
-                            📍 Map preview not available for this location
-                        </div>
-                        ${data.address2GoogleLink ? `</a>` : ''}
-                        ${data.address2GoogleLink ? `<br><a href="${data.address2GoogleLink}" target="_blank" class="map-link">🗺️ View in Google Maps</a>` : ''}
+                        <a href="${data.address2GoogleLink}" target="_blank" class="map-button">
+                            🗺️ View Delivery Location
+                        </a>
+                        <p class="map-instruction">Click to view this location on Google Maps</p>
                     </div>
-                    ` : (data.address2GoogleLink ? `
-                    <div style="text-align: center;">
-                        <div class="map-fallback">
-                            📍 Static map not available, but you can view the location below
-                        </div>
-                        <a href="${data.address2GoogleLink}" target="_blank" class="map-link">🗺️ View in Google Maps</a>
-                    </div>
-                    ` : '')}
                 </div>
                 ` : ''}
             </div>
@@ -550,16 +421,16 @@ async function generateEmailHtml(data) {
             <!-- Authorization Section -->
             <div class="auth-section">
                 <h3 style="margin-top: 0; color: #856404;">🔐 Authorization Required</h3>
-                <p>If this task was initiated by fedex delivery team, please authorize this message to confirm receipt and acceptance.</p>
-                <a href="${data.authUrl}" class="auth-button">AUTHORIZE THIS TASK</a>
+                <p>If this delivery was initiated by FedEx delivery team, please authorize this message to confirm receipt and acceptance.</p>
+                <a href="${data.authUrl}" class="auth-button">AUTHORIZE THIS DELIVERY</a>
                 <div class="warning">⚠️ This link will expire in 20 minutes</div>
             </div>
         </div>
 
         <!-- Footer -->
         <div class="footer">
-            <p>This is an automated task notification from FedEx Task Delivery System</p>
-            <p>For questions, please contact your task coordinator</p>
+            <p>This is an automated delivery notification from FedEx Product Delivery System</p>
+            <p>For questions, please contact your delivery coordinator</p>
         </div>
     </div>
 </body>
@@ -568,7 +439,7 @@ async function generateEmailHtml(data) {
 }
 
 app.listen(PORT, () => {
-  console.log(`🚀 FedEx Task System running on http://localhost:${PORT}`);
+  console.log(`🚀 FedEx Product System running on http://localhost:${PORT}`);
   console.log(`📧 Email configured for: ${process.env.EMAIL_USER || 'NOT SET'}`);
   console.log(`🔑 Email password: ${process.env.EMAIL_PASS ? 'SET ✅' : 'NOT SET ❌'}`);
   
