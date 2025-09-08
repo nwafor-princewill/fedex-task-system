@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Localization Cost Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .intro {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .intro p {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+        }
+        
+        .calculator {
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        select, input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        
+        button {
+            background: #4b6cb7;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #3a5795;
+        }
+        
+        .result {
+            text-align: center;
+            padding: 20px;
+            background: #eef4ff;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .cost {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #182848;
+            margin: 10px 0;
+        }
+        
+        .breakdown {
+            margin-top: 30px;
+        }
+        
+        .breakdown h3 {
+            margin-bottom: 15px;
+            text-align: center;
+            color: #182848;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background-color: #f2f2f2;
+            font-weight: 600;
+        }
+        
+        .complexity {
+            margin-top: 30px;
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        
+        .complexity h3 {
+            margin-bottom: 15px;
+            color: #182848;
+        }
+        
+        .complexity ul {
+            list-style-type: none;
+            padding-left: 20px;
+        }
+        
+        .complexity li {
+            margin-bottom: 10px;
+            position: relative;
+            padding-left: 25px;
+        }
+        
+        .complexity li:before {
+            content: "•";
+            color: #4b6cb7;
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+            font-size: 1.2rem;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            background: #f2f2f2;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                border-radius: 10px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .cost {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Website Localization Cost Calculator</h1>
+            <p class="subtitle">Professional multilingual implementation pricing tool</p>
+        </header>
+        
+        <div class="content">
+            <div class="intro">
+                <p>Implementing multiple languages on a website is a complex process that requires significant development time, translation efforts, and ongoing maintenance.</p>
+                <p>Use this calculator to understand the costs associated with professional multilingual website implementation.</p>
+            </div>
+            
+            <div class="calculator">
+                <div class="form-group">
+                    <label for="languages">Number of Languages to Implement:</label>
+                    <select id="languages">
+                        <option value="3">3 Languages</option>
+                        <option value="6">6 Languages</option>
+                        <option value="10">10 Languages</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="complexity">Website Complexity Level:</label>
+                    <select id="complexity">
+                        <option value="1.0">Standard (5-10 pages)</option>
+                        <option value="1.5">Medium (11-25 pages, some dynamic content)</option>
+                        <option value="2.0">Complex (25+ pages, dynamic content, user accounts)</option>
+                    </select>
+                </div>
+                
+                <button onclick="calculateCost()">Calculate Implementation Cost</button>
+                
+                <div class="result">
+                    <h2>Estimated Implementation Cost</h2>
+                    <div class="cost" id="cost">0 naira</div>
+                    <p>This is a professional estimate for quality multilingual implementation</p>
+                </div>
+            </div>
+            
+            <div class="breakdown">
+                <h3>Standard Localization Pricing</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Number of Languages</th>
+                            <th>Base Cost</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>3 Languages</td>
+                            <td>15,000 naira</td>
+                            <td>Basic multilingual support for small to medium websites</td>
+                        </tr>
+                        <tr>
+                            <td>6 Languages</td>
+                            <td>25,000 naira</td>
+                            <td>Extended language support with cultural adaptation</td>
+                        </tr>
+                        <tr>
+                            <td>10 Languages</td>
+                            <td>50,000 naira</td>
+                            <td>Comprehensive global solution with full localization</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="complexity">
+                <h3>Why Multilingual Implementation Is Complex</h3>
+                <ul>
+                    <li>Translation of all content including UI elements, notifications, and error messages</li>
+                    <li>Cultural adaptation of content and design elements</li>
+                    <li>Technical implementation of language switching functionality</li>
+                    <li>RTL (Right-to-Left) language support for languages like Arabic and Hebrew</li>
+                    <li>Database changes to support multilingual content</li>
+                    <li>SEO implementation for each language version</li>
+                    <li>Quality assurance testing across all languages</li>
+                    <li>Ongoing maintenance and content updates in all languages</li>
+                </ul>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Professional Website Localization Cost Calculator | © 2023 Web Development Experts</p>
+        </footer>
+    </div>
+
+    <script>
+        function calculateCost() {
+            // Get selected values
+            const languageCount = parseInt(document.getElementById('languages').value);
+            const complexityFactor = parseFloat(document.getElementById('complexity').value);
+            
+            // Base prices
+            let basePrice;
+            if (languageCount === 3) {
+                basePrice = 15000;
+            } else if (languageCount === 6) {
+                basePrice = 25000;
+            } else if (languageCount === 10) {
+                basePrice = 50000;
+            }
+            
+            // Calculate final cost
+            const finalCost = basePrice * complexityFactor;
+            
+            // Format and display the cost
+            document.getElementById('cost').textContent =  finalCost.toLocaleString() + ' ' + 'naira' ;
+        }
+        
+        // Initialize with default calculation
+        window.onload = calculateCost;
+    </script>
+</body>
+</html>

