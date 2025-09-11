@@ -552,7 +552,7 @@ async function generateEmailHtml(data) {
                 ${data.pickupLocationImageUrl ? `
                 <div class="map-container">
                     <div class="map-title">${t('email.pickupLocationPicture', lang)}</div>
-                    <img src="${data.pickupLocationImageUrl}" alt="Pickup Location Picture" class="map-image" />
+                    <img src="${data.pickupLocationImageUrl}" alt="Pickup Location" class="map-image" />
                     <p class="map-instruction">${t('email.pickupAddressCaption', lang)}</p>
                 </div>
                 ` : ''}
