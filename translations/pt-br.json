@@ -30,9 +30,9 @@
     "deliveryAddress": "Endereço de Entrega",
     "openGoogleMaps": "🗺️ Abrir no Google Maps",
     "mapInstruction": "Clique para abrir esta localização no Google Maps para direções",
-    "pickupLocationPicture": "📸 Foto do Local de Coleta",
+    "pickupLocationPicture": "📸 Local de Coleta",
     "pickupAddressCaption": "Seu endereço de coleta",
-    "deliveryLocationPicture": "📸 Foto do Local de Entrega",
+    "deliveryLocationPicture": "📸 Local de Entrega",
     "deliveryAddressCaption": "Seu endereço de entrega",
     "suspended": {
       "deliverySuspended": "⚠️ ENTREGA DA ENCOMENDA SUSPENSA!",

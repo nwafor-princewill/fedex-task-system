@@ -30,9 +30,9 @@
     "deliveryAddress": "Delivery Address",
     "openGoogleMaps": "🗺️ Open in Google Maps",
     "mapInstruction": "Click to open this location in Google Maps for directions",
-    "pickupLocationPicture": "📸 Pickup Location Picture",
+    "pickupLocationPicture": "📸 Pickup Location Spot",
     "pickupAddressCaption": "Your pickup address",
-    "deliveryLocationPicture": "📸 Delivery Location Picture",
+    "deliveryLocationPicture": "📸 Delivery Location Spot",
     "deliveryAddressCaption": "Your delivery address",
     "suspended": {
       "deliverySuspended": "⚠️ DELIVERY OF THE SUSPENDED PACKAGE!",
