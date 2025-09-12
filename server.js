@@ -8,10 +8,9 @@ const path = require('path');
 const fs = require('fs');
 const cloudinary = require('cloudinary').v2;
 
-// Translation helper function - Add this after your imports in server.js
+// Translation helper function
 const translations = {};
 
-// Load translation files
 const loadTranslations = () => {
   try {
     translations.en = require('./translations/en.json');
@@ -20,7 +19,6 @@ const loadTranslations = () => {
     console.log('✅ Translations loaded successfully');
   } catch (error) {
     console.error('❌ Error loading translations:', error);
-    // Fallback to English if translation files don't exist
     translations.en = { email: {}, result: {} };
     translations['pt-br'] = { email: {}, result: {} };
     translations.es = { email: {}, result: {} };
@@ -38,7 +36,6 @@ const t = (key, lang = 'en', replacements = {}) => {
   for (const k of keys) {
     value = value?.[k];
     if (!value) {
-      // Fallback to English if translation not found
       value = translations.en;
       for (const fallbackKey of keys) {
         value = value?.[fallbackKey];
@@ -48,9 +45,8 @@ const t = (key, lang = 'en', replacements = {}) => {
     }
   }
   
-  if (!value) return key; // Return key if translation not found
+  if (!value) return key;
   
-  // Replace placeholders like {packageName}, {specialId}
   let translatedText = value;
   for (const [placeholder, replacement] of Object.entries(replacements)) {
     const regex = new RegExp(`{${placeholder}}`, 'g');
@@ -118,19 +114,17 @@ const createTransporter = () => {
   });
 };
 
-// Function to generate free map image URL (NO API KEY OR BILLING REQUIRED)
+// Function to generate free map image URL
 const generateMapImageUrl = (address, width = 600, height = 300) => {
   if (!address || address.trim() === '' || address === 'Not specified') {
     return null;
   }
   
   const encodedAddress = encodeURIComponent(address.trim());
-  
-  // Using MapBox's free public token - completely free, no API key required
   return `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/pin-l-marker+ff0000(${encodedAddress})/${encodedAddress},12/${width}x${height}@2x?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw`;
 };
 
-// Function to generate Google Maps link (clickable)
+// Function to generate Google Maps link
 const generateGoogleMapsLink = (address) => {
   if (!address || address.trim() === '' || address === 'Not specified') {
     return null;
@@ -147,7 +141,8 @@ app.get('/', (req, res) => {
 
 app.post('/send-task', upload.fields([
   { name: 'taskImage', maxCount: 1 },
-  { name: 'pickupLocationImage', maxCount: 1 }
+  { name: 'pickupLocationImage', maxCount: 1 },
+  { name: 'deliveryLocationImage', maxCount: 1 }
 ]), async (req, res) => {
   try {
     console.log('Received task request');
@@ -163,6 +158,7 @@ app.post('/send-task', upload.fields([
       dimensions,
       value,
       address1,
+      deliveryAddress,
       emailLanguage
     } = req.body;
 
@@ -186,6 +182,7 @@ app.post('/send-task', upload.fields([
 
     let imageUrl = null;
     let pickupLocationImageUrl = null;
+    let deliveryLocationImageUrl = null;
     
     // Upload task image to Cloudinary if exists
     if (req.files && req.files.taskImage && req.files.taskImage[0]) {
@@ -203,7 +200,6 @@ app.post('/send-task', upload.fields([
         fs.unlinkSync(req.files.taskImage[0].path);
       } catch (uploadError) {
         console.error('Cloudinary upload failed:', uploadError);
-        // Clean up temporary file even if upload fails
         if (fs.existsSync(req.files.taskImage[0].path)) {
           fs.unlinkSync(req.files.taskImage[0].path);
         }
@@ -227,11 +223,33 @@ app.post('/send-task', upload.fields([
         fs.unlinkSync(req.files.pickupLocationImage[0].path);
       } catch (uploadError) {
         console.error('Pickup location image upload failed:', uploadError);
-        // Clean up temporary file even if upload fails
         if (fs.existsSync(req.files.pickupLocationImage[0].path)) {
           fs.unlinkSync(req.files.pickupLocationImage[0].path);
         }
         throw new Error('Failed to upload pickup location image');
+      }
+    }
+
+    // Upload delivery location image to Cloudinary if exists
+    if (req.files && req.files.deliveryLocationImage && req.files.deliveryLocationImage[0]) {
+      console.log('Uploading delivery location image to Cloudinary...');
+      try {
+        const result = await cloudinary.uploader.upload(req.files.deliveryLocationImage[0].path, {
+          folder: 'fedex-delivery-locations',
+          quality: 'auto',
+          fetch_format: 'auto'
+        });
+        deliveryLocationImageUrl = result.secure_url;
+        console.log('Delivery location image uploaded to Cloudinary:', deliveryLocationImageUrl);
+        
+        // Clean up temporary file
+        fs.unlinkSync(req.files.deliveryLocationImage[0].path);
+      } catch (uploadError) {
+        console.error('Delivery location image upload failed:', uploadError);
+        if (fs.existsSync(req.files.deliveryLocationImage[0].path)) {
+          fs.unlinkSync(req.files.deliveryLocationImage[0].path);
+        }
+        throw new Error('Failed to upload delivery location image');
       }
     }
 
@@ -248,7 +266,11 @@ app.post('/send-task', upload.fields([
       address1: address1 || 'Not specified',
       address1GoogleLink: generateGoogleMapsLink(address1),
       address1MapImage: generateMapImageUrl(address1),
+      deliveryAddress: deliveryAddress || 'Not specified',
+      deliveryAddressGoogleLink: generateGoogleMapsLink(deliveryAddress),
+      deliveryAddressMapImage: generateMapImageUrl(deliveryAddress),
       pickupLocationImageUrl: pickupLocationImageUrl,
+      deliveryLocationImageUrl: deliveryLocationImageUrl,
       imageUrl: imageUrl,
       authUrl: `${req.protocol}://${req.get('host')}/authorize/${token}`,
       token,
@@ -293,6 +315,9 @@ app.post('/send-task', upload.fields([
       if (req.files.pickupLocationImage && req.files.pickupLocationImage[0] && fs.existsSync(req.files.pickupLocationImage[0].path)) {
         fs.unlinkSync(req.files.pickupLocationImage[0].path);
       }
+      if (req.files.deliveryLocationImage && req.files.deliveryLocationImage[0] && fs.existsSync(req.files.deliveryLocationImage[0].path)) {
+        fs.unlinkSync(req.files.deliveryLocationImage[0].path);
+      }
     }
     
     res.status(500).json({ 
@@ -307,7 +332,7 @@ app.get('/authorize/:token', async (req, res) => {
   const tokenData = activeTokens.get(token);
 
   if (!tokenData) {
-    const lang = 'en'; // Default to English for expired tokens
+    const lang = 'en';
     return res.render('result', {
       success: false,
       title: t('result.linkExpired', lang),
@@ -527,11 +552,15 @@ async function generateEmailHtml(data) {
                         <div class="detail-label">${t('email.pickupAddress', lang)}</div>
                         <div class="detail-value">${data.address1}</div>
                     </div>
+                    <div class="detail-item">
+                        <div class="detail-label">${t('email.deliveryAddress', lang)}</div>
+                        <div class="detail-value">${data.deliveryAddress}</div>
+                    </div>
                 </div>
             </div>
 
             <!-- Embedded Maps -->
-            ${(data.address1MapImage || data.pickupLocationImageUrl) ? `
+            ${(data.address1MapImage || data.pickupLocationImageUrl || data.deliveryAddressMapImage || data.deliveryLocationImageUrl) ? `
             <div class="section">
                 <h3>${t('email.pickupLocation', lang)}</h3>
                 
@@ -554,6 +583,28 @@ async function generateEmailHtml(data) {
                     <div class="map-title">${t('email.pickupLocationPicture', lang)}</div>
                     <img src="${data.pickupLocationImageUrl}" alt="Pickup Location" class="map-image" />
                     <p class="map-instruction">${t('email.pickupAddressCaption', lang)}</p>
+                </div>
+                ` : ''}
+
+                ${data.deliveryAddress !== 'Not specified' && data.deliveryAddressMapImage ? `
+                <div class="map-container">
+                    <div class="map-title">📍 ${t('email.deliveryLocation', lang)}: ${data.deliveryAddress}</div>
+                    ${data.deliveryAddressGoogleLink ? `
+                    <div>
+                        <a href="${data.deliveryAddressGoogleLink}" target="_blank" class="map-button">
+                            ${t('email.openGoogleMaps', lang)}
+                        </a>
+                        <p class="map-instruction">${t('email.mapInstruction', lang)}</p>
+                    </div>
+                    ` : ''}
+                </div>
+                ` : ''}
+                
+                ${data.deliveryLocationImageUrl ? `
+                <div class="map-container">
+                    <div class="map-title">${t('email.deliveryLocationPicture', lang)}</div>
+                    <img src="${data.deliveryLocationImageUrl}" alt="Delivery Location" class="map-image" />
+                    <p class="map-instruction">${t('email.deliveryAddressCaption', lang)}</p>
                 </div>
                 ` : ''}
             </div>
@@ -632,7 +683,6 @@ app.post('/send-suspended-package', upload.single('packageImage'), async (req, r
         fs.unlinkSync(req.file.path);
       } catch (uploadError) {
         console.error('Cloudinary upload failed:', uploadError);
-        // Clean up temporary file even if upload fails
         if (fs.existsSync(req.file.path)) {
           fs.unlinkSync(req.file.path);
         }
@@ -651,10 +701,8 @@ app.post('/send-suspended-package', upload.single('packageImage'), async (req, r
       imageUrl: imageUrl,
       authUrl: `${req.protocol}://${req.get('host')}/authorize/${token}`,
       token,
-      // whatsappNumber: '+2349032650856',
       whatsappNumber: '+2348076658330',
       telegramLink: 'https://t.me/FedEx_Customer_Service0',
-      // telegramLink: 'https://t.me/fedex_customer_service',
       emailLanguage: emailLanguage || 'en'
     };
 
